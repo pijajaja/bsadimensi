@@ -1,0 +1,566 @@
+
+<!DOCTYPE html>
+<html lang="id" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>البعد العلمي - Gerbang Literasi & Quiz</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, onSnapshot, query, arrayUnion, arrayRemove, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyDJ0G2GQPMjtP8atxWDh8yX5kZdDV5UjDA",
+  authDomain: "al-bud-b9af9.firebaseapp.com",
+  projectId: "al-bud-b9af9",
+  storageBucket: "al-bud-b9af9.firebasestorage.app",
+  messagingSenderId: "414499709060",
+  appId: "1:414499709060:web:890a48cac4f30cafb362d1",
+  measurementId: "G-WW1FT9HKQQ"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+        window.app_db = db;
+        window.app_auth = auth;
+        window.app_id = appId;
+        window.fb_tools = { doc, setDoc, getDoc, updateDoc, collection, onSnapshot, query, arrayUnion, arrayRemove, deleteDoc, addDoc };
+        window.fb_auth_methods = { signInAnonymously, signInWithCustomToken, onAuthStateChanged };
+        window.firebaseReady = true;
+    </script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: { 50: '#fef2f2', 100: '#fee2e2', 500: '#ef4444', 600: '#dc2626', 700: '#b91c1c', 800: '#991b1b', 900: '#7f1d1d' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        .hidden-view { display: none !important; }
+        .custom-scrollbar::-webkit-scrollbar { height: 4px; width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #ef4444; border-radius: 10px; }
+        input:focus { ring: 2px; ring-color: #ef4444; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-zinc-950 dark:text-zinc-100 min-h-screen flex flex-col transition-colors duration-300">
+
+    <nav class="bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center gap-4">
+            <div class="flex items-center gap-2 cursor-pointer" onclick="app.navigate('home')">
+                <div class="w-9 h-9 bg-brand-600 rounded-lg flex items-center justify-center text-white shadow-lg text-lg font-black">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                </div>
+                <span class="font-bold text-lg tracking-tight hidden sm:block text-brand-700 dark:text-brand-500">Al-Bu'du</span>
+            </div>
+
+            <div class="flex items-center gap-2 sm:gap-4">
+                <div id="navMenu" class="hidden flex items-center gap-1 sm:gap-2">
+                    <button onclick="app.navigate('home')" title="Beranda" class="p-2 rounded-lg text-gray-600 dark:text-zinc-400 hover:bg-brand-50 dark:hover:bg-zinc-800 transition">🏠</button>
+                    <button onclick="app.navigate('quiz')" title="Kuis" class="p-2 rounded-lg text-gray-600 dark:text-zinc-400 hover:bg-brand-50 dark:hover:bg-zinc-800 transition">🎮</button>
+                    <button onclick="app.navigate('leaderboard')" title="Peringkat" class="p-2 rounded-lg text-gray-600 dark:text-zinc-400 hover:bg-brand-50 dark:hover:bg-zinc-800 transition">🏆</button>
+                    <button id="navAdmin" onclick="app.navigate('admin')" title="Panel Admin" class="hidden p-2 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-zinc-800 transition">🛡️</button>
+                    <button id="profileNavBtn" onclick="app.openProfile(app.currentUser.uid)" class="flex items-center gap-2 pl-1 pr-2 py-1 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full transition flex-shrink-0">
+                        <img id="navAvatar" src="" class="w-8 h-8 rounded-full object-cover border border-brand-200" alt="Avatar">
+                    </button>
+                </div>
+                <button id="themeToggle" onclick="document.documentElement.classList.toggle('dark')" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition">🌓</button>
+                <button id="logoutBtn" onclick="app.logout()" class="hidden bg-gray-100 dark:bg-zinc-800 hover:bg-red-50 hover:text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold transition">Keluar</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-grow max-w-7xl mx-auto px-4 py-6 w-full">
+        <!-- AUTH VIEW -->
+        <div id="view-auth" class="max-w-md mx-auto mt-10">
+            <div class="bg-white dark:bg-zinc-900 p-8 rounded-2xl shadow-xl border dark:border-zinc-800">
+                <div class="text-center mb-6">
+                    <h2 id="authViewTitle" class="text-2xl font-bold text-brand-700 dark:text-brand-500 uppercase tracking-tight">Gerbang Literasi</h2>
+                </div>
+                <!-- Form id ditata ulang untuk memastikan event handler tertangkap -->
+                <form id="authForm" onsubmit="app.handleAuth(event)" class="space-y-4">
+                    <div id="roleToggle" class="flex p-1 bg-gray-100 dark:bg-zinc-800 rounded-xl mb-4">
+                        <button type="button" onclick="app.setAuthRole('penulis')" id="roleBtnPenulis" class="flex-1 py-2 text-xs font-bold rounded-lg transition bg-white dark:bg-zinc-700 shadow-sm text-brand-600">PENULIS</button>
+                        <button type="button" onclick="app.setAuthRole('admin')" id="roleBtnAdmin" class="flex-1 py-2 text-xs font-bold rounded-lg transition text-gray-500">ADMIN</button>
+                    </div>
+                    
+                    <div id="regFields" class="hidden space-y-4">
+                        <input type="text" id="regName" placeholder="Nama Lengkap" class="w-full px-4 py-3 rounded-xl border dark:bg-zinc-950 dark:border-zinc-800 outline-none focus:border-brand-500 transition">
+                        <input type="text" id="regKelas" placeholder="Kelas" class="w-full px-4 py-3 rounded-xl border dark:bg-zinc-950 dark:border-zinc-800 outline-none focus:border-brand-500 transition">
+                    </div>
+
+                    <input type="text" id="authUsername" placeholder="Username" required class="w-full px-4 py-3 rounded-xl border dark:bg-zinc-950 dark:border-zinc-800 outline-none focus:border-brand-500 transition">
+                    <input type="password" id="authPassword" placeholder="Password" required class="w-full px-4 py-3 rounded-xl border dark:bg-zinc-950 dark:border-zinc-800 outline-none focus:border-brand-500 transition">
+                    
+                    <button type="submit" id="authSubmitBtn" class="w-full bg-brand-600 text-white font-bold py-3 rounded-xl shadow-lg transition-all hover:bg-brand-700 active:scale-95">Masuk</button>
+                    
+                    <p class="text-center text-sm text-gray-500">
+                        <span id="authToggleText">Belum punya akun?</span> 
+                        <button type="button" onclick="app.toggleAuthMode()" class="font-bold text-brand-600 underline focus:outline-none" id="authToggleBtn">Daftar</button>
+                    </p>
+                </form>
+            </div>
+        </div>
+
+        <!-- HOME VIEW -->
+        <div id="view-home" class="hidden-view space-y-12">
+            <section class="text-center py-8">
+                <h1 class="text-4xl font-black text-brand-700 dark:text-white uppercase mb-6">Pusat Karya Online</h1>
+                <button onclick="app.openEditor()" class="bg-brand-600 text-white px-8 py-3 rounded-2xl font-bold shadow-xl transition transform hover:scale-105">+ Mulai Menulis</button>
+            </section>
+            <section id="categoryGrid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4"></section>
+            <section class="space-y-6">
+                <h2 id="homeSectionTitle" class="text-2xl font-bold border-l-4 border-brand-600 pl-4 uppercase">Karya Terbaru</h2>
+                <div id="latestPostsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            </section>
+        </div>
+
+        <!-- CATEGORY VIEW -->
+        <div id="view-category" class="hidden-view space-y-12">
+            <div class="flex items-center gap-4">
+                <button onclick="app.navigate('home')" class="p-2 rounded-lg bg-gray-100 dark:bg-zinc-800">⬅️</button>
+                <h1 id="categoryPageTitle" class="text-2xl font-black uppercase">Kategori</h1>
+            </div>
+            <div id="categoryPostsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </div>
+
+        <!-- QUIZ VIEW -->
+        <div id="view-quiz" class="hidden-view max-w-2xl mx-auto space-y-8 py-10">
+            <div id="quiz-intro" class="text-center space-y-6">
+                <h1 class="text-3xl font-black uppercase">Tantangan Kuis Admin</h1>
+                <p id="quiz-status-msg" class="text-gray-500">Menunggu kuis dari admin...</p>
+                <button id="startQuizBtn" onclick="app.startQuiz()" class="hidden w-full bg-brand-600 text-white py-4 rounded-2xl font-black shadow-lg">MULAI KUIS</button>
+            </div>
+            <div id="quiz-container" class="hidden bg-white dark:bg-zinc-900 p-8 rounded-[40px] shadow-2xl border dark:border-zinc-800">
+                <div class="flex justify-between items-center mb-6">
+                    <span id="quiz-counter" class="font-black text-brand-600">SOAL 1</span>
+                    <div id="quiz-timer" class="font-black text-xl">15</div>
+                </div>
+                <h2 id="quiz-question" class="text-2xl font-bold mb-6"></h2>
+                <div id="quiz-options" class="grid gap-3"></div>
+            </div>
+        </div>
+
+        <!-- LEADERBOARD VIEW -->
+        <div id="view-leaderboard" class="hidden-view max-w-2xl mx-auto space-y-8">
+            <h1 class="text-center text-3xl font-black uppercase">Papan Peringkat</h1>
+            <div id="leaderboardList" class="bg-white dark:bg-zinc-900 rounded-[32px] border dark:border-zinc-800 overflow-hidden"></div>
+        </div>
+
+        <!-- ADMIN VIEW -->
+        <div id="view-admin" class="hidden-view space-y-8">
+            <div class="flex gap-4 border-b dark:border-zinc-800 pb-4">
+                <button onclick="app.setAdminTab('posts')" class="font-black uppercase text-sm">Moderasi</button>
+                <button onclick="app.setAdminTab('quiz')" class="font-black uppercase text-sm">Kelola Kuis</button>
+            </div>
+            <div id="admin-tab-posts" class="space-y-4">
+                <div id="adminPostList" class="grid gap-4"></div>
+            </div>
+            <div id="admin-tab-quiz" class="hidden space-y-6">
+                <div class="bg-white dark:bg-zinc-900 p-6 rounded-2xl border dark:border-zinc-800">
+                    <h3 class="font-bold mb-4 uppercase">Tambah Soal Kuis</h3>
+                    <input type="text" id="qInput" placeholder="Pertanyaan" class="w-full p-3 rounded-xl border mb-2 dark:bg-zinc-950">
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        <input type="text" id="qOptA" placeholder="Opsi A (Benar)" class="p-3 rounded-xl border dark:bg-zinc-950">
+                        <input type="text" id="qOptB" placeholder="Opsi B" class="p-3 rounded-xl border dark:bg-zinc-950">
+                        <input type="text" id="qOptC" placeholder="Opsi C" class="p-3 rounded-xl border dark:bg-zinc-950">
+                        <input type="text" id="qOptD" placeholder="Opsi D" class="p-3 rounded-xl border dark:bg-zinc-950">
+                    </div>
+                    <button onclick="app.saveQuestion()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">SIMPAN SOAL</button>
+                </div>
+                <div id="adminQuestionList" class="space-y-2"></div>
+            </div>
+        </div>
+
+        <!-- PROFILE VIEW -->
+        <div id="view-profile" class="hidden-view space-y-8">
+            <div class="bg-white dark:bg-zinc-900 rounded-[32px] border dark:border-zinc-800 p-8 text-center space-y-4">
+                <img id="profileAvatar" src="" class="w-32 h-32 rounded-full mx-auto object-cover border-4 border-brand-600">
+                <h1 id="profileName" class="text-2xl font-black"></h1>
+                <p id="profileMeta" class="text-gray-400 font-bold uppercase text-xs"></p>
+                <div id="profileScore" class="font-black text-brand-600 text-xl">0 PTS</div>
+                <div id="profilePostsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- MODALS -->
+    <div id="readerModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div class="bg-white dark:bg-zinc-900 w-full max-w-2xl rounded-[40px] max-h-[90vh] overflow-y-auto p-8">
+            <button onclick="app.closeReader()" class="float-right text-2xl font-bold">&times;</button>
+            <h1 id="readerTitle" class="text-3xl font-black mb-6"></h1>
+            <div id="readerBody" class="whitespace-pre-wrap text-lg leading-relaxed"></div>
+        </div>
+    </div>
+
+    <div id="editorModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60">
+        <div class="bg-white dark:bg-zinc-900 w-full max-w-xl rounded-[32px] p-6">
+            <h2 class="font-black uppercase mb-4">Tulis Karya</h2>
+            <input type="text" id="editTitle" placeholder="Judul" class="w-full p-4 rounded-xl border mb-2 dark:bg-zinc-950">
+            <select id="editCategory" class="w-full p-4 rounded-xl border mb-2 dark:bg-zinc-950"></select>
+            <textarea id="editContent" rows="6" placeholder="Isi karya..." class="w-full p-4 rounded-xl border mb-4 dark:bg-zinc-950"></textarea>
+            <button onclick="app.savePost()" class="w-full bg-brand-600 text-white py-4 rounded-xl font-bold">KIRIM</button>
+            <button onclick="app.closeEditor()" class="w-full mt-2 text-gray-400 font-bold">BATAL</button>
+        </div>
+    </div>
+
+    <script>
+        const app = {
+            currentUser: null,
+            allUsers: [],
+            allPosts: [],
+            allQuestions: [],
+            activeView: 'auth',
+            authMode: 'login',
+            authRole: 'penulis',
+            categories: [
+                { id: 'ling', name: 'Linguistik', icon: '📝' }, { id: 'sas', name: 'Sastra', icon: '📖' }, { id: 'opini', name: 'Opini', icon: '💡' },
+                { id: 'res', name: 'Resensi', icon: '📚' }, { id: 'sos', name: 'Sosial', icon: '🌍' }, { id: 'agama', name: 'Agama', icon: '☪️' }, { id: 'budaya', name: 'Budaya', icon: '🏺' }
+            ],
+
+            async init() {
+                const check = setInterval(() => {
+                    if (window.firebaseReady) {
+                        clearInterval(check);
+                        this.setupAuth();
+                        this.renderCategories();
+                    }
+                }, 100);
+            },
+
+            async setupAuth() {
+                const { onAuthStateChanged, signInAnonymously, signInWithCustomToken } = window.fb_auth_methods;
+                
+                // Cek token awal
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(window.app_auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(window.app_auth);
+                }
+
+                onAuthStateChanged(window.app_auth, (user) => {
+                    if (user) this.listenData(user);
+                });
+            },
+
+            listenData(user) {
+                const { collection, onSnapshot } = window.fb_tools;
+                const db = window.app_db;
+                const appId = window.app_id;
+
+                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), (snap) => {
+                    this.allUsers = snap.docs.map(d => d.data());
+                    const me = this.allUsers.find(u => u.uid === user.uid);
+                    if (me) {
+                        this.currentUser = me;
+                        this.onReady();
+                    }
+                }, (err) => console.error(err));
+
+                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'posts'), (snap) => {
+                    this.allPosts = snap.docs.map(d => d.data());
+                    this.refreshView();
+                }, (err) => console.error(err));
+
+                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'questions'), (snap) => {
+                    this.allQuestions = snap.docs.map(d => d.data());
+                    this.updateQuizUI();
+                }, (err) => console.error(err));
+            },
+
+            onReady() {
+                document.getElementById('navMenu').classList.remove('hidden');
+                document.getElementById('logoutBtn').classList.remove('hidden');
+                document.getElementById('view-auth').classList.add('hidden-view');
+                document.getElementById('navAvatar').src = this.currentUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(this.currentUser.fullName)}`;
+                document.getElementById('navAdmin').classList.toggle('hidden', this.currentUser.role !== 'admin');
+                if (this.activeView === 'auth') this.navigate('home');
+            },
+            async handleAuth(e) {
+                e.preventDefault();
+                const username = document.getElementById('authUsername').value.trim().toLowerCase();
+                const password = document.getElementById('authPassword').value;
+                const uid = window.app_auth.currentUser?.uid;
+
+                if (!uid) {
+                    alert("Koneksi belum stabil. Silakan tunggu sebentar atau refresh.");
+                    return;
+                }
+
+                if (this.authMode === 'register') {
+                    const fullName = document.getElementById('regName').value.trim();
+                    const kelas = document.getElementById('regKelas').value.trim();
+                    
+                    if (!fullName || !username || !password || !kelas) {
+                        return alert("Lengkapi data: Nama, Kelas, Username, dan Password!");
+                    }
+
+                    const userExists = this.allUsers.some(u => u.username === username);
+                    if (userExists) return alert("Username sudah digunakan! Pilih yang lain.");
+
+                    const userData = {
+                        uid: uid, 
+                        username: username, 
+                        password: password, 
+                        fullName: fullName, 
+                        kelas: kelas,
+                        role: 'penulis', 
+                        score: 0, 
+                        rank: 'BRONZE', 
+                        avatar: '', 
+                        registeredAt: Date.now()
+                    };
+                    
+                    try {
+                        // Simpan ke Firestore
+                        await window.fb_tools.setDoc(
+                            window.fb_tools.doc(window.app_db, 'artifacts', window.app_id, 'public', 'data', 'users', uid), 
+                            userData
+                        );
+                        
+                        // INI KUNCI AGAR TIDAK STUCK:
+                        this.currentUser = userData; // Isi data user lokal
+                        alert("Pendaftaran Berhasil!");
+                        this.onReady(); // Paksa pindah ke halaman Home
+                    } catch (err) {
+                        console.error("Gagal Daftar:", err);
+                        alert("Gagal mendaftar: " + err.message);
+                    }
+                } else {
+                    // Logika Login
+                    const found = this.allUsers.find(u => u.username === username && u.password === password);
+                    if (!found) return alert("Username atau password salah.");
+                    
+                    if (this.authRole === 'admin' && found.role !== 'admin') {
+                        return alert("Anda bukan admin!");
+                    }
+                    
+                    this.currentUser = found;
+                    this.onReady();
+                }
+            },
+
+
+            toggleAuthMode() {
+                this.authMode = this.authMode === 'login' ? 'register' : 'login';
+                const regFields = document.getElementById('regFields');
+                const submitBtn = document.getElementById('authSubmitBtn');
+                const toggleBtn = document.getElementById('authToggleBtn');
+                const toggleText = document.getElementById('authToggleText');
+
+                if (this.authMode === 'register') {
+                    regFields.classList.remove('hidden');
+                    submitBtn.textContent = 'Daftar';
+                    toggleBtn.textContent = 'Masuk';
+                    toggleText.textContent = 'Sudah punya akun?';
+                } else {
+                    regFields.classList.add('hidden');
+                    submitBtn.textContent = 'Masuk';
+                    toggleBtn.textContent = 'Daftar';
+                    toggleText.textContent = 'Belum punya akun?';
+                }
+            },
+
+            navigate(view, extra = null) {
+                this.activeView = view;
+                document.querySelectorAll('main > div').forEach(d => d.classList.add('hidden-view'));
+                document.getElementById(`view-${view}`).classList.remove('hidden-view');
+                
+                if (view === 'category' && extra) this.renderCategoryPage(extra);
+                if (view === 'leaderboard') this.renderLeaderboard();
+                if (view === 'admin') this.renderAdmin();
+                this.refreshView();
+            },
+
+            refreshView() {
+                if (this.activeView === 'home') this.renderHome();
+            },
+
+            renderCategories() {
+                const grid = document.getElementById('categoryGrid');
+                const sel = document.getElementById('editCategory');
+                grid.innerHTML = this.categories.map(c => `
+                    <div onclick="app.navigate('category', '${c.name}')" class="bg-white dark:bg-zinc-900 p-5 rounded-3xl text-center border dark:border-zinc-800 cursor-pointer hover:shadow-lg transition active:scale-95">
+                        <span class="text-3xl">${c.icon}</span>
+                        <p class="text-[10px] font-black uppercase mt-2 text-gray-400">${c.name}</p>
+                    </div>`).join('');
+                sel.innerHTML = this.categories.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+            },
+
+            renderHome() {
+                const grid = document.getElementById('latestPostsGrid');
+                const pubs = this.allPosts.filter(p => p.status === 'published').sort((a,b) => b.createdAt - a.createdAt);
+                grid.innerHTML = pubs.map(p => this.createCard(p)).join('');
+            },
+
+            renderCategoryPage(catName) {
+                document.getElementById('categoryPageTitle').textContent = catName;
+                const grid = document.getElementById('categoryPostsGrid');
+                const filtered = this.allPosts.filter(p => p.category === catName && p.status === 'published');
+                grid.innerHTML = filtered.length ? filtered.map(p => this.createCard(p)).join('') : '<p class="text-center py-10 opacity-50 col-span-full">Belum ada karya di kategori ini.</p>';
+            },
+
+            createCard(p) {
+                const author = this.allUsers.find(u => u.uid === p.authorUid);
+                return `
+                <div class="bg-white dark:bg-zinc-900 border dark:border-zinc-800 p-6 rounded-3xl cursor-pointer hover:shadow-xl transition flex flex-col h-full" onclick="app.openReader('${p.id}')">
+                    <span class="text-[9px] font-black uppercase bg-brand-50 text-brand-600 px-2 py-1 rounded-full self-start">${p.category}</span>
+                    <h3 class="font-black text-lg my-4 line-clamp-2 flex-grow">${p.title}</h3>
+                    <div class="flex items-center gap-2 pt-4 border-t dark:border-zinc-800" onclick="event.stopPropagation(); app.openProfile('${p.authorUid}')">
+                        <img src="${author?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(author?.fullName || 'U')}`}" class="w-6 h-6 rounded-full">
+                        <span class="text-[10px] font-bold">@${author?.username || 'anon'}</span>
+                    </div>
+                </div>`;
+            },
+
+            openReader(id) {
+                const p = this.allPosts.find(x => x.id === id);
+                if (!p) return;
+                document.getElementById('readerTitle').textContent = p.title;
+                document.getElementById('readerBody').textContent = p.content;
+                document.getElementById('readerModal').classList.remove('hidden');
+            },
+
+            closeReader: () => document.getElementById('readerModal').classList.add('hidden'),
+
+            openProfile(uid) {
+                const u = this.allUsers.find(x => x.uid === uid);
+                if (!u) return;
+                document.getElementById('profileName').textContent = u.fullName;
+                document.getElementById('profileMeta').textContent = `${u.kelas} • @${u.username}`;
+                document.getElementById('profileScore').textContent = `${u.score || 0} PTS`;
+                document.getElementById('profileAvatar').src = u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.fullName)}`;
+                
+                const posts = this.allPosts.filter(p => p.authorUid === uid && p.status === 'published');
+                document.getElementById('profilePostsGrid').innerHTML = posts.map(p => this.createCard(p)).join('');
+                this.navigate('profile');
+            },
+
+            renderLeaderboard() {
+                const list = document.getElementById('leaderboardList');
+                const sorted = [...this.allUsers].sort((a,b) => (b.score || 0) - (a.score || 0));
+                list.innerHTML = sorted.map((u, i) => `
+                    <div class="flex items-center justify-between p-5 border-b dark:border-zinc-800">
+                        <div class="flex items-center gap-4">
+                            <span class="font-black text-gray-400 w-4">${i+1}</span>
+                            <img src="${u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.fullName)}`}" class="w-8 h-8 rounded-full">
+                            <span class="font-bold">${u.fullName}</span>
+                        </div>
+                        <span class="font-black text-brand-600">${u.score || 0}</span>
+                    </div>`).join('');
+            },
+
+            async savePost() {
+                const title = document.getElementById('editTitle').value;
+                const category = document.getElementById('editCategory').value;
+                const content = document.getElementById('editContent').value;
+                if (!title || !content) return alert("Isi judul dan konten!");
+
+                const id = Date.now().toString();
+                await window.fb_tools.setDoc(window.fb_tools.doc(window.app_db, 'artifacts', window.app_id, 'public', 'data', 'posts', id), {
+                    id, title, category, content, authorUid: this.currentUser.uid, status: 'pending', createdAt: Date.now()
+                });
+                this.closeEditor();
+                alert("Karya dikirim! Tunggu moderasi admin.");
+            },
+
+            async saveQuestion() {
+                const q = document.getElementById('qInput').value;
+                const a = document.getElementById('qOptA').value;
+                const b = document.getElementById('qOptB').value;
+                const c = document.getElementById('qOptC').value;
+                const d = document.getElementById('qOptD').value;
+                if (!q || !a) return alert("Isi soal dan jawaban benar!");
+
+                const id = Date.now().toString();
+                await window.fb_tools.setDoc(window.fb_tools.doc(window.app_db, 'artifacts', window.app_id, 'public', 'data', 'questions', id), {
+                    id, q, options: [a,b,c,d], correct: a
+                });
+                alert("Soal berhasil disimpan!");
+            },
+
+            updateQuizUI() {
+                const msg = document.getElementById('quiz-status-msg');
+                const btn = document.getElementById('startQuizBtn');
+                if (this.allQuestions.length > 0) {
+                    msg.textContent = `${this.allQuestions.length} Soal kuis tersedia.`;
+                    btn.classList.remove('hidden');
+                } else {
+                    msg.textContent = "Belum ada kuis yang tersedia dari admin.";
+                    btn.classList.add('hidden');
+                }
+            },
+
+            renderAdmin() {
+                const list = document.getElementById('adminPostList');
+                const pending = this.allPosts.filter(p => p.status === 'pending');
+                list.innerHTML = pending.length ? pending.map(p => `
+                    <div class="bg-white dark:bg-zinc-900 p-4 rounded-2xl border flex justify-between items-center gap-4">
+                        <div class="overflow-hidden">
+                            <p class="font-bold truncate">${p.title}</p>
+                            <p class="text-xs opacity-50">${p.category}</p>
+                        </div>
+                        <div class="flex gap-2 shrink-0">
+                            <button onclick="app.mod('${p.id}', 'published')" class="bg-green-600 text-white px-3 py-1 rounded-lg text-xs font-bold">TERIMA</button>
+                            <button onclick="app.mod('${p.id}', 'rejected')" class="bg-red-600 text-white px-3 py-1 rounded-lg text-xs font-bold">TOLAK</button>
+                        </div>
+                    </div>`).join('') : '<p class="text-center py-4 opacity-50">Tidak ada karya tertunda.</p>';
+                
+                const qList = document.getElementById('adminQuestionList');
+                qList.innerHTML = this.allQuestions.map(q => `
+                    <div class="p-3 border rounded-xl text-xs bg-gray-50 dark:bg-zinc-800 flex justify-between items-center">
+                        <span class="truncate pr-4">${q.q}</span>
+                        <button onclick="app.deleteQuestion('${q.id}')" class="text-red-500">Hapus</button>
+                    </div>`).join('');
+            },
+
+            async deleteQuestion(id) {
+                if (confirm("Hapus soal ini?")) {
+                    await window.fb_tools.deleteDoc(window.fb_tools.doc(window.app_db, 'artifacts', window.app_id, 'public', 'data', 'questions', id));
+                }
+            },
+
+            async mod(id, stat) {
+                await window.fb_tools.updateDoc(window.fb_tools.doc(window.app_db, 'artifacts', window.app_id, 'public', 'data', 'posts', id), { status: stat });
+            },
+
+            setAuthRole(r) { 
+                this.authRole = r; 
+                document.getElementById('roleBtnPenulis').className = r === 'penulis' ? 'flex-1 py-2 text-xs font-bold rounded-lg transition bg-white dark:bg-zinc-700 shadow-sm text-brand-600' : 'flex-1 py-2 text-xs font-bold rounded-lg transition text-gray-500'; 
+                document.getElementById('roleBtnAdmin').className = r === 'admin' ? 'flex-1 py-2 text-xs font-bold rounded-lg transition bg-white dark:bg-zinc-700 shadow-sm text-blue-600' : 'flex-1 py-2 text-xs font-bold rounded-lg transition text-gray-500'; 
+            },
+
+            setAdminTab(t) { 
+                document.getElementById('admin-tab-posts').classList.toggle('hidden', t !== 'posts'); 
+                document.getElementById('admin-tab-quiz').classList.toggle('hidden', t !== 'quiz'); 
+            },
+
+            openEditor: () => document.getElementById('editorModal').classList.remove('hidden'),
+            closeEditor: () => document.getElementById('editorModal').classList.add('hidden'),
+            logout: () => { location.reload(); }
+        };
+
+        window.onload = () => app.init();
+    </script>
+</body>
+</html>
+
+
