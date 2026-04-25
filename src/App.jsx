@@ -2,20 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, Home, Gamepad2, UserCircle, Settings, FileText, Users, 
   Moon, Sun, Plus, MessageCircle, Feather, PenTool, BookOpenCheck, 
-  Landmark, BookHeart, Globe, Check, X, Trash2, ThumbsUp, LogOut, Search
+  Landmark, BookHeart, Globe, Check, X, Trash2, ThumbsUp, LogOut
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, signInAnonymously, onAuthStateChanged, 
-  createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updatePassword,
-  signInWithCustomToken
+  createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updatePassword
 } from 'firebase/auth';
 import { 
   getFirestore, collection, onSnapshot, doc, setDoc, 
-  updateDoc, addDoc, arrayUnion, arrayRemove
+  updateDoc, addDoc, deleteDoc, arrayUnion, arrayRemove 
 } from 'firebase/firestore';
 
-// --- CONFIGURATION ---
+// --- FIREBASE CONFIGURATION ---
 const firebaseConfig = {
   apiKey: "AIzaSyDJ0G2GQPMjtP8atxWDh8yX5kZdDV5UjDA",
   authDomain: "al-bud-b9af9.firebaseapp.com",
@@ -26,168 +25,206 @@ const firebaseConfig = {
   measurementId: "G-FT6STPS6TG"
 };
 
-// Initialize Firebase services
+// Setup Firebase Instances
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-// Perbaikan Vercel 1: Gunakan window checking agar ESLint tidak error "undeclared variable"
-const appId = typeof window !== 'undefined' && window.__app_id ? window.__app_id : 'al-bud-b9af9';
+const appId = 'al-bud-b9af9';
 
 export default function App() {
-  // --- STATE ---
+  // --- GLOBAL STATE ---
   const [theme, setTheme] = useState('light');
   const [view, setView] = useState('login'); 
+  const [toast, setToast] = useState({ show: false, message: '', type: 'info' });
+  
+  // Auth & User States
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [toast, setToast] = useState({ show: false, message: '', type: 'info' });
   
-  // Data State
+  // Data States
   const [allUsers, setAllUsers] = useState([]);
   const [allArticles, setAllArticles] = useState([]);
   const [activeQuiz, setActiveQuiz] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
   
-  // Selections
+  // Active Selections
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedArticle, setSelectedArticle] = useState(null);
 
-  // --- INITIALIZATION ---
+  // --- FIREBASE INITIALIZATION & LISTENERS ---
   useEffect(() => {
+    // Standard web initial anon auth to ensure db connection
     const initAuth = async () => {
-      // Perbaikan Vercel 2: Gunakan window checking
-      if (typeof window !== 'undefined' && window.__initial_auth_token) {
-        await signInWithCustomToken(auth, window.__initial_auth_token);
-      } else if (!auth.currentUser) {
+      try {
         await signInAnonymously(auth);
+      } catch (err) {
+        console.error("Auth init error:", err);
       }
     };
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      if (!u) {
-        setIsAdmin(false);
-        setUserProfile(null);
-      }
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
     });
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
 
-  // --- FIRESTORE SYNC ---
+  // Fetch Public Data (Users, Articles, Quizzes)
   useEffect(() => {
     if (!user) return;
 
-    // Users
+    // Users List
     const unsubUsers = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), 
       (snapshot) => {
-        const list = snapshot.docs.map(d => ({ uid: d.id, ...d.data() }));
-        setAllUsers(list);
-        const me = list.find(u => u.uid === user.uid);
-        if (me) setUserProfile(me);
-      }, (e) => console.error(e));
+        const usersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setAllUsers(usersData);
+        if (user && !isAdmin) {
+          const profile = usersData.find(u => u.uid === user.uid);
+          if (profile) setUserProfile(profile);
+        }
+      },
+      (error) => console.error(error)
+    );
 
-    // Articles
+    // Articles List
     const unsubArticles = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'articles'), 
       (snapshot) => {
-        setAllArticles(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-      }, (e) => console.error(e));
+        setAllArticles(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      },
+      (error) => console.error(error)
+    );
 
-    // Quiz
+    // Quiz Data
     const unsubQuiz = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'quizzes'), 
       (snapshot) => {
-        const quizzes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        setActiveQuiz(quizzes.find(q => q.active) || null);
-      }, (e) => console.error(e));
+        const quizzes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const active = quizzes.find(q => q.active);
+        setActiveQuiz(active || null);
+      },
+      (error) => console.error(error)
+    );
 
-    // Leaderboard
-    const unsubLeader = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'), 
+    // Leaderboard Data
+    const unsubLeaderboard = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'), 
       (snapshot) => {
-        setLeaderboard(snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => b.score - a.score));
-      }, (e) => console.error(e));
+        setLeaderboard(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => b.score - a.score));
+      },
+      (error) => console.error(error)
+    );
 
-    return () => { unsubUsers(); unsubArticles(); unsubQuiz(); unsubLeader(); };
-  }, [user]);
+    return () => { unsubUsers(); unsubArticles(); unsubQuiz(); unsubLeaderboard(); };
+  }, [user, isAdmin]);
 
-  // --- UTILS ---
+  // --- HELPERS ---
   const showToast = (message, type = 'info') => {
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: '', type: 'info' }), 3000);
   };
 
-  const handleLogout = async () => {
+  const logout = async () => {
     await signOut(auth);
+    setIsAdmin(false);
+    setUserProfile(null);
     setView('login');
     showToast('Berhasil keluar');
   };
 
-  // --- UI STYLES ---
-  const isDark = theme === 'dark';
-  const mainClasses = isDark ? 'bg-black text-white' : 'bg-white text-red-950';
-  const cardClasses = isDark ? 'bg-neutral-900 border border-red-900/40' : 'bg-red-50/30 border border-red-100';
-  const inputClasses = `w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all ${isDark ? 'bg-black border-red-900 text-white focus:ring-red-700' : 'bg-white border-red-200 text-red-950 focus:ring-red-400'}`;
-  const btnPrimary = "bg-red-700 hover:bg-red-800 text-white font-bold py-3 px-6 rounded-xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50";
+  // --- THEME CLASSES ---
+  const appClasses = theme === 'dark' 
+    ? 'bg-black text-red-50 min-h-screen font-sans selection:bg-red-900' 
+    : 'bg-red-50 text-red-950 min-h-screen font-sans selection:bg-red-200';
+  
+  const cardClasses = theme === 'dark'
+    ? 'bg-neutral-900 border border-red-900/30 rounded-2xl shadow-xl'
+    : 'bg-white border border-red-100 rounded-2xl shadow-lg';
 
-  // --- SUB-VIEWS ---
+  const inputClasses = theme === 'dark'
+    ? 'w-full p-3 bg-black border border-red-900 rounded-xl focus:ring-2 focus:ring-red-600 outline-none text-red-50'
+    : 'w-full p-3 bg-red-50/50 border border-red-200 rounded-xl focus:ring-2 focus:ring-red-400 outline-none text-red-900';
+
+  const btnPrimary = 'bg-red-700 hover:bg-red-800 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-2';
+
+  // --- SUB-COMPONENTS ---
+
+  const Toast = () => {
+    if (!toast.show) return null;
+    return (
+      <div className={`fixed top-5 right-5 p-4 rounded-xl shadow-2xl z-50 animate-bounce ${toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
+        {toast.message}
+      </div>
+    );
+  };
 
   const Header = () => (
-    <header className={`sticky top-0 z-50 px-4 py-3 border-b flex flex-col gap-3 ${isDark ? 'bg-black border-red-900' : 'bg-white border-red-100 shadow-sm'}`}>
-      <div className="max-w-4xl mx-auto w-full flex justify-between items-center">
-        <div className="flex gap-4 items-center overflow-x-auto no-scrollbar">
-          <button onClick={() => setView('beranda')} className="p-2 text-red-600 hover:bg-red-500/10 rounded-full transition-colors"><Home size={22}/></button>
-          <button onClick={() => setView('minigame')} className="p-2 text-red-600 hover:bg-red-500/10 rounded-full transition-colors"><Gamepad2 size={22}/></button>
-          <button onClick={() => setView('profile')} className="p-2 text-red-600 hover:bg-red-500/10 rounded-full transition-colors"><UserCircle size={22}/></button>
-          <button onClick={() => setView('settings')} className="p-2 text-red-600 hover:bg-red-500/10 rounded-full transition-colors"><Settings size={22}/></button>
-          <button onClick={() => setView('myworks')} className="p-2 text-red-600 hover:bg-red-500/10 rounded-full transition-colors"><FileText size={22}/></button>
-          <button onClick={() => setView('search-users')} className="p-2 text-red-600 hover:bg-red-500/10 rounded-full transition-colors"><Users size={22}/></button>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')} className="p-2 text-red-600">
-            {isDark ? <Sun size={22}/> : <Moon size={22}/>}
+    <header className={`${theme === 'dark' ? 'bg-black border-b border-red-900' : 'bg-white border-b border-red-200'} sticky top-0 z-40 px-4 py-3 flex flex-col items-center gap-3`}>
+      <div className="flex justify-between items-center w-full max-w-4xl">
+        <div className="flex items-center gap-4 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar w-full justify-between">
+          <button onClick={() => setView('beranda')} className="p-2 hover:bg-red-500/20 rounded-full text-red-600 transition-colors"><Home size={24} /></button>
+          <button onClick={() => setView('minigame')} className="p-2 hover:bg-red-500/20 rounded-full text-red-600 transition-colors"><Gamepad2 size={24} /></button>
+          <button onClick={() => setView('profile')} className="p-2 hover:bg-red-500/20 rounded-full text-red-600 transition-colors"><UserCircle size={24} /></button>
+          <button onClick={() => setView('settings')} className="p-2 hover:bg-red-500/20 rounded-full text-red-600 transition-colors"><Settings size={24} /></button>
+          <button onClick={() => setView('myworks')} className="p-2 hover:bg-red-500/20 rounded-full text-red-600 transition-colors"><FileText size={24} /></button>
+          <button onClick={() => setView('search-users')} className="p-2 hover:bg-red-500/20 rounded-full text-red-600 transition-colors"><Users size={24} /></button>
+          
+          <div className="h-6 w-px bg-red-300/30 mx-2"></div>
+          
+          <button onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')} className="p-2 hover:bg-red-500/20 rounded-full text-red-600 transition-colors">
+            {theme === 'light' ? <Moon size={24} /> : <Sun size={24} />}
           </button>
-          <button onClick={handleLogout} className="p-2 text-red-600"><LogOut size={22}/></button>
+          <button onClick={logout} className="p-2 hover:bg-red-500/20 rounded-full text-red-600 transition-colors"><LogOut size={24} /></button>
         </div>
       </div>
-      <h1 className="text-center font-black tracking-[0.2em] text-red-700 text-lg">DIMENSI KARYA BSA</h1>
+      <h1 className="text-xl font-bold tracking-widest text-red-700 text-center">DIMENSI KARYA BSA</h1>
     </header>
   );
 
+  const Footer = () => (
+    <footer className="mt-12 py-6 text-center text-sm opacity-60 border-t border-red-900/20">
+      <p>2026 Divisi Penelitian dan Pengembangan HMPS BSA UIN Syarif Hidayatullah Jakarta</p>
+    </footer>
+  );
+
+  // --- VIEWS ---
+
   const LoginView = () => {
-    const [tab, setTab] = useState('penulis');
+    const [tab, setTab] = useState('penulis'); 
     const [form, setForm] = useState({ email: '', password: '', username: '', nama: '', kelas: '', angkatan: '', pin: '' });
 
-    const handleLogin = async (e) => {
+    const handleAction = async (e) => {
       e.preventDefault();
       try {
         if (tab === 'admin') {
           if (form.username === 'admin' && form.password === 'admin123' && form.pin === '9988') {
             setIsAdmin(true);
             setView('admin');
-            showToast('Login Admin Berhasil', 'success');
+            showToast('Selamat datang Admin', 'success');
           } else {
             showToast('Kredensial Admin Salah!', 'error');
           }
         } else if (tab === 'penulis') {
           await signInWithEmailAndPassword(auth, form.email, form.password);
           setView('beranda');
-          showToast('Selamat datang kembali!');
-        } else {
-          const cred = await createUserWithEmailAndPassword(auth, form.email, form.password);
-          const profile = {
-            uid: cred.user.uid,
+          showToast('Berhasil Login', 'success');
+        } else if (tab === 'daftar') {
+          const userCredential = await createUserWithEmailAndPassword(auth, form.email, form.password);
+          const newUser = {
+            uid: userCredential.user.uid,
             nama: form.nama,
             username: form.username,
             email: form.email,
             kelas: form.kelas,
             angkatan: form.angkatan,
             quotes: 'Menulis adalah bekerja untuk keabadian.',
+            avatar: '',
             friends: [],
             friendRequests: [],
-            avatar: ''
+            role: 'penulis'
           };
-          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', cred.user.uid), profile);
-          setUserProfile(profile);
+          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userCredential.user.uid), newUser);
+          setUserProfile(newUser);
           setView('beranda');
-          showToast('Akun berhasil dibuat!');
+          showToast('Akun berhasil dibuat!', 'success');
         }
       } catch (err) {
         showToast(err.message, 'error');
@@ -195,87 +232,48 @@ export default function App() {
     };
 
     return (
-      <div className={`min-h-screen flex flex-col items-center justify-center p-6 ${isDark ? 'bg-black' : 'bg-red-50/50'}`}>
-        <div className="mb-12 text-center">
-          <BookOpen size={90} className="mx-auto text-red-700 mb-12 animate-pulse" />
-          <h1 className="text-5xl font-serif text-red-800 font-bold mb-2">البعد العلمي</h1>
-          <p className="opacity-60 font-medium tracking-widest uppercase text-xs">Dimensi Karya Bahasa & Sastra Arab</p>
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <div className="text-center mb-12 animate-fade-in-down">
+          <BookOpen size={80} className="mx-auto text-red-700 mb-8" />
+          <h1 className="text-4xl font-bold text-red-700 mt-8 mb-2" style={{ fontFamily: 'serif' }}>البعد العلمي</h1>
+          <p className="opacity-70">Dimensi Karya Bahasa & Sastra Arab</p>
         </div>
 
-        <div className={`${cardClasses} w-full max-w-md p-8 rounded-3xl shadow-2xl`}>
-          <div className="flex bg-red-100/50 dark:bg-neutral-800 p-1 rounded-2xl mb-8">
+        <div className={`${cardClasses} w-full max-w-md p-6 animate-fade-in-up`}>
+          <div className="flex bg-red-100 dark:bg-neutral-800 rounded-xl p-1 mb-6">
             {['penulis', 'admin', 'daftar'].map(t => (
-              <button key={t} onClick={() => setTab(t)} className={`flex-1 py-2.5 rounded-xl text-sm font-bold capitalize transition-all ${tab === t ? 'bg-red-700 text-white shadow-lg' : 'text-red-900/60 dark:text-white/60'}`}>
+              <button 
+                key={t} onClick={() => setTab(t)} 
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold capitalize transition-colors ${tab === t ? 'bg-red-700 text-white shadow' : 'text-red-900 dark:text-red-300'}`}
+              >
                 {t}
               </button>
             ))}
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleAction} className="flex flex-col gap-4">
             {tab === 'daftar' && (
               <>
-                <input required placeholder="Nama Lengkap" className={inputClasses} onChange={e=>setForm({...form, nama: e.target.value})} />
-                <input required placeholder="Username" className={inputClasses} onChange={e=>setForm({...form, username: e.target.value})} />
+                <input required placeholder="Nama Lengkap" className={inputClasses} onChange={e => setForm({...form, nama: e.target.value})} />
+                <input required placeholder="Username" className={inputClasses} onChange={e => setForm({...form, username: e.target.value})} />
+                <input required type="email" placeholder="Email" className={inputClasses} onChange={e => setForm({...form, email: e.target.value})} />
                 <div className="flex gap-4">
-                   <input required placeholder="Kelas" className={inputClasses} onChange={e=>setForm({...form, kelas: e.target.value})} />
-                   <input required placeholder="Angkatan" className={inputClasses} onChange={e=>setForm({...form, angkatan: e.target.value})} />
+                  <input required placeholder="Kelas" className={inputClasses} onChange={e => setForm({...form, kelas: e.target.value})} />
+                  <input required placeholder="Angkatan (Contoh: 2024)" className={inputClasses} onChange={e => setForm({...form, angkatan: e.target.value})} />
                 </div>
+                <input required type="password" placeholder="Password" className={inputClasses} onChange={e => setForm({...form, password: e.target.value})} />
               </>
             )}
-            {tab !== 'admin' && <input required type="email" placeholder="Email" className={inputClasses} onChange={e=>setForm({...form, email: e.target.value})} />}
-            {tab === 'admin' && <input required placeholder="Admin Username" className={inputClasses} onChange={e=>setForm({...form, username: e.target.value})} />}
-            <input required type="password" placeholder="Password" className={inputClasses} onChange={e=>setForm({...form, password: e.target.value})} />
-            {tab === 'admin' && <input required type="password" placeholder="PIN Admin" className={inputClasses} onChange={e=>setForm({...form, pin: e.target.value})} />}
             
-            <button type="submit" className={`${btnPrimary} w-full mt-4`}>
-              {tab === 'daftar' ? 'Buat Akun Sekarang' : 'Masuk ke Aplikasi'}
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  };
+            {tab === 'penulis' && (
+              <>
+                <input required type="email" placeholder="Email Akun" className={inputClasses} onChange={e => setForm({...form, email: e.target.value})} />
+                <input required type="password" placeholder="Password" className={inputClasses} onChange={e => setForm({...form, password: e.target.value})} />
+              </>
+            )}
 
-  const BerandaView = () => {
-    const cats = [
-      { id: 'linguistik', name: 'Linguistik', icon: MessageCircle },
-      { id: 'sastra', name: 'Sastra', icon: Feather },
-      { id: 'opini', name: 'Opini & Esai Reflektif', icon: PenTool },
-      { id: 'resensi', name: 'Resensi', icon: BookOpenCheck },
-      { id: 'sosial-politik', name: 'Sosial Politik', icon: Landmark },
-      { id: 'agama', name: 'Agama', icon: BookHeart },
-      { id: 'kebudayaan', name: 'Kebudayaan', icon: Globe },
-    ];
-
-    return (
-      <div className="p-6 max-w-4xl mx-auto pb-32">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-          {cats.map(c => (
-            <div 
-              key={c.id} 
-              onClick={() => { setSelectedCategory(c.id); setView('category'); }}
-              className={`${cardClasses} p-8 rounded-[2rem] flex flex-col items-center text-center cursor-pointer hover:scale-[1.03] hover:shadow-xl transition-all group`}
-            >
-              <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center text-red-700 mb-4 group-hover:bg-red-700 group-hover:text-white transition-colors">
-                <c.icon size={32} />
-              </div>
-              <h3 className="font-bold text-lg leading-tight">{c.name}</h3>
-            </div>
-          ))}
-        </div>
-
-        <button 
-          onClick={() => setView('write')}
-          className="fixed bottom-10 left-1/2 -translate-x-1/2 w-16 h-16 bg-red-700 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all z-50 border-4 border-white dark:border-black"
-        >
-          <Plus size={36} />
-        </button>
-      </div>
-    );
-  };
-
-  const CategoryView = () => {
-    const arts = allArticles.filter(a => a.category === selectedCategory && a.status === 'approved');
-    return (
-      <div className="p-6 max-w-4xl mx-auto">
-        <button onClick={() => setView('beranda')} className="mb
+            {tab === 'admin' && (
+              <>
+                <input required placeholder="Username Admin" className={inputClasses} onChange={e => setForm({...form, username: e.target.value})} />
+                <input required type="password" placeholder="Password" className={inputClasses} onChange={e => setForm({...form, password: e.target.value})} />
+                <input required type="password" placeholder="PIN Admin"
