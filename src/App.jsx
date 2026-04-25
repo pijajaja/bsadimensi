@@ -121,11 +121,10 @@ export default function App() {
 
   // --- UI STYLES ---
   const isDark = theme === 'dark';
-  const mainClasses = isDark ? 'bg-black text-white' : 'bg-white text-red-950';
-  const cardClasses = isDark ? 'bg-neutral-900 border border-red-900/40' : 'bg-red-50/30 border border-red-100';
-  const inputClasses = `w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all ${isDark ? 'bg-black border-red-900 text-white focus:ring-red-700' : 'bg-white border-red-200 text-red-950 focus:ring-red-400'}`;
+  const mainClasses = isDark ? "bg-black text-white" : "bg-white text-red-950";
+  const cardClasses = isDark ? "bg-neutral-900 border border-red-900/40" : "bg-red-50/30 border border-red-100";
+  const inputClasses = "w-full p-3 rounded-xl border outline-none focus:ring-2 transition-all " + (isDark ? "bg-black border-red-900 text-white focus:ring-red-700" : "bg-white border-red-200 text-red-950 focus:ring-red-400");
   const btnPrimary = "bg-red-700 hover:bg-red-800 text-white font-bold py-3 px-6 rounded-xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50";
-
   // --- SUB-VIEWS ---
 
   const Header = () => (
